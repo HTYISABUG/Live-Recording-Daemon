@@ -13,6 +13,9 @@ from downloader import download
 app = Flask(__name__)
 auth = HTTPTokenAuth()
 
+logger = logging.getLogger('werkzeug')
+logger.setLevel(logging.WARNING)
+
 logger = create_logger(app)
 logger.setLevel(logging.INFO)
 
