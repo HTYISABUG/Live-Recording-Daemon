@@ -1,6 +1,8 @@
 import logging
 import json
 import os
+import sys
+import traceback
 
 from http import HTTPStatus
 
@@ -31,10 +33,11 @@ with open('settings.json') as fp:
 @app.route('/', methods=['POST'])
 @auth.login_required
 def main():
+    host = request.host
     data = request.json
 
     try:
-        download(savepath, data)
+        download(savepath, host, data)
     except Exception as e:
         abort(HTTPStatus.INTERNAL_SERVER_ERROR, err_msg(e))
 

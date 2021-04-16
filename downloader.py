@@ -13,7 +13,7 @@ session = Streamlink()
 logger = logging.getLogger('app')
 
 
-def download(folder: str, data: dict):
+def download(folder: str, host: str, data: dict):
     status_code, url = follow_redirect(data['url'])
 
     if status_code != HTTPStatus.OK:
@@ -39,6 +39,10 @@ def download(folder: str, data: dict):
 
         logger.info(
             f'Stream ended. File write to {os.path.join(folder, filename)}')
+
+        data['filename'] = filename
+
+        requests.post(f'https://{host}/recorder', json=data)
 
     threading.Thread(target=f).start()
 
