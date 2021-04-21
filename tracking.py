@@ -13,7 +13,8 @@ prev = []
 try:
     while True:
         p = subprocess.run(
-            ['du', '-h', '-d0', *glob.glob(os.path.join(savepath, '*'))],
+            ['du', '-h', '-d0', '-BM', *
+                glob.glob(os.path.join(savepath, '*'))],
             stdout=subprocess.PIPE,
         )
 
@@ -26,6 +27,6 @@ try:
 
         prev = output
 
-        time.sleep(1)
+        time.sleep(2)
 except KeyboardInterrupt:
     pass

@@ -23,6 +23,7 @@ logger.setLevel(logging.INFO)
 
 with open('settings.json') as fp:
     settings = json.load(fp)
+    remote = settings['remote']
     token = settings['token']
     savepath = settings['savepath']
 
@@ -33,15 +34,13 @@ with open('settings.json') as fp:
 @app.route('/', methods=['POST'])
 @auth.login_required
 def main():
-    host = request.host
     data = request.json
 
     try:
-        download(savepath, host, data)
+        download(savepath, remote, data)
+        logger.info(f'Live on {data["url"]} start recording')
     except Exception as e:
         abort(HTTPStatus.INTERNAL_SERVER_ERROR, err_msg(e))
-
-    logger.info(f'Live on {data["url"]} start recording')
 
     return Response(status=HTTPStatus.OK)
 
