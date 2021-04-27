@@ -37,7 +37,7 @@ def main():
     data = request.json
 
     try:
-        download(savepath, remote, data)
+        download(savepath, data)
         logger.info(f'Live on {data["url"]} start recording')
     except Exception as e:
         abort(HTTPStatus.INTERNAL_SERVER_ERROR, err_msg(e))

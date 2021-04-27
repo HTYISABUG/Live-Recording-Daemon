@@ -13,9 +13,11 @@ session = Streamlink()
 logger = logging.getLogger('app')
 
 
-def download(folder: str, host: str, data: dict):
+def download(folder: str, data: dict):
     data['url'] = follow_redirect(data['url'])
     data['success'] = False
+
+    remote = data['remote']
 
     def output_stream():
         while True:
@@ -38,7 +40,8 @@ def download(folder: str, host: str, data: dict):
                 logger.error(
                     f"Could not open stream {stream}, tried {retry_open} times")
                 data['success'] = False
-                requests.post(f'https://{host}/recorder', json=data, timeout=5)
+                requests.post(
+                    f'https://{remote}/recorder', json=data, timeout=5)
                 break
 
             data['filename'] = filename = get_filename(data)
@@ -52,12 +55,13 @@ def download(folder: str, host: str, data: dict):
                     f'Stream ended. File write to {os.path.join(folder, filename)}')
                 resp: requests.Response = \
                     requests.post(
-                        f'https://{host}/recorder', json=data, timeout=5)
+                        f'https://{remote}/recorder', json=data, timeout=5)
 
                 if not resp.json()['retry']:
                     break
             else:
-                requests.post(f'https://{host}/recorder', json=data, timeout=5)
+                requests.post(
+                    f'https://{remote}/recorder', json=data, timeout=5)
                 break
 
     threading.Thread(target=output_stream).start()
