@@ -1,134 +1,82 @@
-import datetime
 import logging
-import os
 import requests
 import threading
+import os
 
-from itertools import chain
-from functools import partial
+import youtube_dl
 
-from streamlink import Streamlink, StreamError
+from utils import follow_redirect
 
-session = Streamlink()
+# Download status
+STATUS_DOWNLOADING = "downloading"
+STATUS_ERROR = "error"
+STATUS_FINISHED = "finished"
+
 logger = logging.getLogger('app')
+options = {
+    'outtmpl': '%(title)s.%(id)s.%(ext)s',
+    'logger': logger,
+}
 
 
 def download(folder: str, data: dict):
-    data['url'] = follow_redirect(data['url'])
-    data['success'] = False
-
+    # Server info
     remote = data['remote']
 
-    def output_stream():
-        while True:
-            streams = session.streams(data['url'])
-            stream = streams['best']
+    # Download info
+    urls = [follow_redirect(url) for url in data['url']]
 
-            retry_open = 3
-            success_open = False
+    merge = False
 
-            for i in range(retry_open):
-                try:
-                    stream_fd, prebuffer = open_stream(stream)
-                    success_open = True
-                    break
-                except StreamError as err:
-                    logger.error(
-                        "Try {0}/{1}: Could not open stream {2} ({3})".format(i + 1, retry_open, stream, err))
+    def hook(d: dict):
+        nonlocal merge
 
-            if not success_open:
-                logger.error(
-                    f"Could not open stream {stream}, tried {retry_open} times")
-                data['success'] = False
-                requests.post(
-                    f'https://{remote}/recorder', json=data, timeout=5)
-                break
+        if d['status'] == STATUS_FINISHED:
+            new_data = data.copy()
+            new_data['success'] = True
 
-            data['filename'] = filename = get_filename(data)
+            second_last = d['filename'].rsplit('.', 2)[-2]
 
-            with open(os.path.join(folder, filename), 'wb') as output:
-                logger.debug("Writing stream to output")
-                data['success'] = read_stream(stream_fd, output, prebuffer)
+            if len(second_last) != 11:
+                new_data['videoID'] = d['filename'].rsplit('.', 3)[-3]
+                new_data['filename'] = f"{d['filename'].rsplit('.', 3)[0]}.{new_data['videoID']}.mkv"
 
-            if data['success']:
-                logger.info(
-                    f'Stream ended. File write to {os.path.join(folder, filename)}')
-                resp: requests.Response = \
-                    requests.post(
-                        f'https://{remote}/recorder', json=data, timeout=5)
-
-                if not resp.json()['retry']:
-                    break
+                merge = (not merge)
             else:
+                new_data['videoID'] = second_last
+                new_data['filename'] = d['filename']
+
+            new_data['filename'] = os.path.basename(new_data['filename'])
+
+            if not merge:
                 requests.post(
-                    f'https://{remote}/recorder', json=data, timeout=5)
-                break
+                    f'https://{remote}/recorder', json=new_data, timeout=5)
 
-    threading.Thread(target=output_stream).start()
+    def output_file():
+        opts = options.copy()
+        opts['progress_hooks'] = [hook]
+        opts['outtmpl'] = os.path.join(folder, opts['outtmpl'])
 
+        nonlocal merge
 
-def follow_redirect(url: str):
-    return requests.get(url).url
+        with youtube_dl.YoutubeDL(opts) as dl:
+            for u in urls:
+                try:
+                    merge = False
+                    dl.download([u])
+                except youtube_dl.DownloadError as e:
+                    new_data = data.copy()
+                    new_data['success'] = False
+                    new_data['description'] = str(e).split(maxsplit=1)[1]
 
+                    requests.post(
+                        f'https://{remote}/recorder', json=new_data, timeout=5)
+                except Exception as e:
+                    new_data = data.copy()
+                    new_data['success'] = False
+                    new_data['description'] = str(e)
 
-def get_filename(data):
-    if data['platform'] == 'YouTube':
-        date_time = datetime.datetime.now().strftime('%Y%m%d.%H%M%S')
-        filename = f"{data['platform']}.{data['channelID']}.{data['videoID']}.{date_time}.ts"
-    else:
-        raise Exception('Invalid platform')
+                    requests.post(
+                        f'https://{remote}/recorder', json=new_data, timeout=5)
 
-    return filename
-
-
-def open_stream(stream):
-    """Opens a stream and reads 8192 bytes from it.
-
-    This is useful to check if a stream actually has data
-    before opening the output.
-
-    """
-    # Attempts to open the stream
-    try:
-        stream_fd = stream.open()
-    except StreamError as err:
-        raise StreamError("Could not open stream: {0}".format(err))
-
-    # Read 8192 bytes before proceeding to check for errors.
-    # This is to avoid opening the output unnecessarily.
-    try:
-        logger.debug("Pre-buffering 8192 bytes")
-        prebuffer = stream_fd.read(8192)
-    except OSError as err:
-        stream_fd.close()
-        raise StreamError("Failed to read data from stream: {0}".format(err))
-
-    if not prebuffer:
-        stream_fd.close()
-        raise StreamError("No data returned from stream")
-
-    return stream_fd, prebuffer
-
-
-def read_stream(stream, output, prebuffer, chunk_size=8192) -> bool:
-    """Reads data from stream and then writes it to the output."""
-    done = True
-    stream_iterator = chain(
-        [prebuffer],
-        iter(partial(stream.read, chunk_size), b"")
-    )
-
-    try:
-        for data in stream_iterator:
-            try:
-                output.write(data)
-            except OSError as err:
-                logger.error(f"Error when writing to output: {err}")
-                done = False
-                break
-    except OSError as err:
-        logger.info(f"Error when reading from stream: {err}")
-    finally:
-        stream.close()
-
-    return done
+    threading.Thread(target=output_file).start()

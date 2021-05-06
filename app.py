@@ -10,6 +10,7 @@ from flask import Flask, Response, request, abort
 from flask.logging import create_logger
 from flask_httpauth import HTTPTokenAuth
 
+from recorder import record
 from downloader import download
 
 app = Flask(__name__)
@@ -34,11 +35,22 @@ with open('settings.json') as fp:
 @app.route('/', methods=['POST'])
 @auth.login_required
 def main():
-    data = request.json
+    data: dict = request.json
+    action = data.get('action', 'record')
 
     try:
-        download(savepath, data)
-        logger.info(f'Live on {data["url"]} start recording')
+        if action == 'record':
+            record(savepath, data)
+            logger.info(f'Live on {data["url"]} start recording')
+        elif action == 'download':
+            download(savepath, data)
+
+            if len(data["url"]) == 1:
+                logger.info(f'{data["url"][0]} start downloading')
+            else:
+                logger.info(f'{len(data["url"])} videos start downloading')
+        else:
+            raise Exception('Invalid action type')
     except Exception as e:
         abort(HTTPStatus.INTERNAL_SERVER_ERROR, err_msg(e))
 
