@@ -7,6 +7,8 @@ import threading
 from itertools import chain
 from functools import partial
 
+import ffmpeg
+
 from streamlink import Streamlink, StreamError
 
 from utils import follow_redirect
@@ -56,6 +58,11 @@ def record(folder: str, data: dict):
             if data['success']:
                 logger.info(
                     f'Stream ended. File write to {os.path.join(folder, filename)}')
+
+                # Start video post-processing
+                data['filename'] = postprocess(os.path.join(folder, filename))
+
+                # Send finished notice
                 resp: requests.Response = \
                     requests.post(
                         f'https://{remote}/recorder', json=data, timeout=5)
@@ -131,3 +138,34 @@ def read_stream(stream, output, prebuffer, chunk_size=8192) -> bool:
         stream.close()
 
     return done
+
+
+def postprocess(filepath: str) -> str:
+    root, _ = os.path.splitext(filepath)
+
+    p = (
+        ffmpeg
+        .input(filepath)
+        .output(root+'.mp4', vcodec='copy')
+        .global_args('-hide_banner', '-y')
+        .overwrite_output()
+        .run_async(pipe_stdout=True, pipe_stderr=True)
+    )
+    _, err = p.communicate()
+
+    if p.returncode != 0:
+        print(err.decode())
+
+        if os.path.exists(root+'.mp4'):
+            os.remove(root+'.mp4')
+
+        return os.path.basename(filepath)
+
+    logger.info(f'Re-encode ended. File write to {root+".mp4"}')
+
+    if os.path.exists(root+'.mp4'):
+        logger.info(f'Remove origin file {os.path.basename(filepath)}')
+
+        os.remove(filepath)
+
+    return os.path.basename(root)+'.mp4'
