@@ -13,7 +13,6 @@ from streamlink import Streamlink, StreamError
 
 from utils import follow_redirect
 
-session = Streamlink()
 logger = logging.getLogger('app')
 
 
@@ -25,6 +24,8 @@ def record(folder: str, data: dict):
     url = follow_redirect(data['url'])
 
     def output_stream():
+        session = Streamlink()
+
         while True:
             streams = session.streams(url)
             stream = streams['best']
@@ -80,7 +81,7 @@ def record(folder: str, data: dict):
 def get_filename(data):
     if data['platform'] == 'YouTube':
         date_time = datetime.datetime.now().strftime('%Y%m%d.%H%M%S')
-        filename = f"{data['platform']}.{data['channelID']}.{data['videoID']}.{date_time}.ts"
+        filename = f"{data['platform']}.{data['channelID']}.{date_time}.{data['videoID']}.ts"
     else:
         raise Exception('Invalid platform')
 
