@@ -47,7 +47,7 @@ def record(folder: str, data: dict):
                     f"Could not open stream {stream}, tried {retry_open} times")
                 data['success'] = False
                 requests.post(
-                    f'https://{remote}/recorder', json=data, timeout=5)
+                    f'http://{remote}/recorder', json=data, timeout=5)
                 break
 
             data['filename'] = filename = get_filename(data)
@@ -66,13 +66,13 @@ def record(folder: str, data: dict):
                 # Send finished notice
                 resp: requests.Response = \
                     requests.post(
-                        f'https://{remote}/recorder', json=data, timeout=5)
+                        f'http://{remote}/recorder', json=data, timeout=5)
 
                 if not resp.json()['retry']:
                     break
             else:
                 requests.post(
-                    f'https://{remote}/recorder', json=data, timeout=5)
+                    f'http://{remote}/recorder', json=data, timeout=5)
                 break
 
     threading.Thread(target=output_stream).start()

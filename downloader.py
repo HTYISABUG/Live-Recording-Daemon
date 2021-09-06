@@ -21,7 +21,7 @@ options = {
 
 def download(folder: str, data: dict):
     # Server info
-    remote = data['remote']
+    remote = data['callback']
 
     # Download info
     urls = [follow_redirect(url) for url in data['url']]
@@ -50,7 +50,7 @@ def download(folder: str, data: dict):
 
             if not merge:
                 requests.post(
-                    f'https://{remote}/recorder', json=new_data, timeout=5)
+                    f'http://{remote}/recorder', json=new_data, timeout=5)
 
     def output_file():
         opts = options.copy()
@@ -70,13 +70,13 @@ def download(folder: str, data: dict):
                     new_data['description'] = str(e).split(maxsplit=1)[1]
 
                     requests.post(
-                        f'https://{remote}/recorder', json=new_data, timeout=5)
+                        f'http://{remote}/recorder', json=new_data, timeout=5)
                 except Exception as e:
                     new_data = data.copy()
                     new_data['success'] = False
                     new_data['description'] = str(e)
 
                     requests.post(
-                        f'https://{remote}/recorder', json=new_data, timeout=5)
+                        f'http://{remote}/recorder', json=new_data, timeout=5)
 
     threading.Thread(target=output_file).start()

@@ -10,7 +10,7 @@ from flask import Flask, Response, request, abort
 from flask.logging import create_logger
 from flask_httpauth import HTTPTokenAuth
 
-from recorder import record
+from recorder_v2 import record
 from downloader import download
 
 app = Flask(__name__)
@@ -24,7 +24,6 @@ logger.setLevel(logging.INFO)
 
 with open('settings.json') as fp:
     settings = json.load(fp)
-    remote = settings['remote']
     token = settings['token']
     savepath = settings['savepath']
 
@@ -40,7 +39,8 @@ def main():
 
     try:
         if action == 'record':
-            record(savepath, data)
+            data['savepath'] = savepath
+            record(data)
             logger.info(f'Live on {data["url"]} start recording')
         elif action == 'download':
             download(savepath, data)
@@ -51,6 +51,8 @@ def main():
                 logger.info(f'{len(data["url"])} videos start downloading')
         else:
             raise Exception('Invalid action type')
+    except KeyError as e:
+        abort(HTTPStatus.BAD_REQUEST, err_msg(e))
     except Exception as e:
         abort(HTTPStatus.INTERNAL_SERVER_ERROR, err_msg(e))
 
@@ -64,11 +66,6 @@ def verify_token(t):
 
 
 def err_msg(e: Exception):
-    """500 bad request for exception
-
-    Returns:
-        500 and msg which caused problems
-    """
     error_class = e.__class__.__name__
     detail = e.args[0]
 
